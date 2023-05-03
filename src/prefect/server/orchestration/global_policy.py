@@ -144,10 +144,12 @@ class SetEndTime(BaseUniversalTransform):
             context.run.end_time = None
 
         # if entering a final state...
-        if context.proposed_state.is_final():
-            # if the run has a start time and no end time, give it one
-            if context.run.start_time and not context.run.end_time:
-                context.run.end_time = context.proposed_state.timestamp
+        if (
+            context.proposed_state.is_final()
+            and context.run.start_time
+            and not context.run.end_time
+        ):
+            context.run.end_time = context.proposed_state.timestamp
 
 
 class IncrementRunTime(BaseUniversalTransform):
@@ -180,9 +182,10 @@ class IncrementFlowRunCount(BaseUniversalTransform):
         if context.proposed_state.is_running():
             # do not increment the run count if resuming a paused flow
             api_version = context.parameters.get("api-version", None)
-            if api_version is None or api_version >= Version("0.8.4"):
-                if context.run.empirical_policy.resuming:
-                    return
+            if (
+                api_version is None or api_version >= Version("0.8.4")
+            ) and context.run.empirical_policy.resuming:
+                return
 
             # increment the run count
             context.run.run_count += 1
@@ -200,12 +203,14 @@ class RemoveResumingIndicator(BaseUniversalTransform):
         proposed_state = context.proposed_state
 
         api_version = context.parameters.get("api-version", None)
-        if api_version is None or api_version >= Version("0.8.4"):
-            if proposed_state.is_running() or proposed_state.is_final():
-                if context.run.empirical_policy.resuming:
-                    updated_policy = context.run.empirical_policy.dict()
-                    updated_policy["resuming"] = False
-                    context.run.empirical_policy = FlowRunPolicy(**updated_policy)
+        if (
+            (api_version is None or api_version >= Version("0.8.4"))
+            and (proposed_state.is_running() or proposed_state.is_final())
+            and context.run.empirical_policy.resuming
+        ):
+            updated_policy = context.run.empirical_policy.dict()
+            updated_policy["resuming"] = False
+            context.run.empirical_policy = FlowRunPolicy(**updated_policy)
 
 
 class IncrementTaskRunCount(BaseUniversalTransform):

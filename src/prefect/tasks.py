@@ -208,19 +208,23 @@ class Task(Generic[P, R]):
         self.isasync = inspect.iscoroutinefunction(self.fn)
 
         if not name:
-            if not hasattr(self.fn, "__name__"):
-                self.name = type(self.fn).__name__
-            else:
-                self.name = self.fn.__name__
+            self.name = (
+                self.fn.__name__
+                if hasattr(self.fn, "__name__")
+                else type(self.fn).__name__
+            )
         else:
             self.name = name
 
-        if task_run_name is not None:
-            if not isinstance(task_run_name, str) and not callable(task_run_name):
-                raise TypeError(
-                    "Expected string or callable for 'task_run_name'; got"
-                    f" {type(task_run_name).__name__} instead."
-                )
+        if (
+            task_run_name is not None
+            and not isinstance(task_run_name, str)
+            and not callable(task_run_name)
+        ):
+            raise TypeError(
+                "Expected string or callable for 'task_run_name'; got"
+                f" {type(task_run_name).__name__} instead."
+            )
         self.task_run_name = task_run_name
 
         self.version = version
@@ -230,11 +234,11 @@ class Task(Generic[P, R]):
 
         self.tags = set(tags if tags else [])
 
-        if not hasattr(self.fn, "__qualname__"):
-            self.task_key = to_qualified_name(type(self.fn))
-        else:
-            self.task_key = to_qualified_name(self.fn)
-
+        self.task_key = (
+            to_qualified_name(self.fn)
+            if hasattr(self.fn, "__qualname__")
+            else to_qualified_name(type(self.fn))
+        )
         self.cache_key_fn = cache_key_fn
         self.cache_expiration = cache_expiration
         self.refresh_cache = refresh_cache

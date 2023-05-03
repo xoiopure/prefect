@@ -229,20 +229,19 @@ async def deploy(
                     "but no name was given. Please specify the name of at least one "
                     "deployment to create or update."
                 )
-        elif len(deployments) <= 1:
-            if len(names) > 1:
-                exit_with_error(
-                    "Multiple deployment names were provided, but only one deployment"
-                    " was found in deployment.yaml. Please provide a single deployment"
-                    " name."
-                )
-            else:
-                options["name"] = names[0] if names else None
-                await _run_single_deploy(
-                    base_deploy=deployments[0],
-                    project=project,
-                    options=options,
-                )
+        elif len(names) > 1:
+            exit_with_error(
+                "Multiple deployment names were provided, but only one deployment"
+                " was found in deployment.yaml. Please provide a single deployment"
+                " name."
+            )
+        else:
+            options["name"] = names[0] if names else None
+            await _run_single_deploy(
+                base_deploy=deployments[0],
+                project=project,
+                options=options,
+            )
     except ValueError as exc:
         exit_with_error(str(exc))
 
@@ -344,7 +343,7 @@ async def _run_single_deploy(
     if param and (params is not None):
         exit_with_error("Can only pass one of `param` or `params` options")
 
-    parameters = dict()
+    parameters = {}
 
     if param:
         for p in param or []:
@@ -391,7 +390,7 @@ async def _run_single_deploy(
     ## RUN BUILD AND PUSH STEPS
     step_outputs = {}
     for step in build_steps + push_steps:
-        step_outputs.update(await run_step(step))
+        step_outputs |= await run_step(step)
 
     variable_overrides = {}
     for variable in variables or []:

@@ -153,7 +153,7 @@ class ORMFlowRunState:
             "Artifact",
             lazy="selectin",
             foreign_keys=[cls.result_artifact_id],
-            primaryjoin="Artifact.id==%s.result_artifact_id" % cls.__name__,
+            primaryjoin=f"Artifact.id=={cls.__name__}.result_artifact_id",
         )
 
     @hybrid_property
@@ -161,10 +161,7 @@ class ORMFlowRunState:
         if self._data:
             # ensures backwards compatibility for results stored on state objects
             return self._data
-        if not self.result_artifact_id:
-            # do not try to load the relationship if there's no artifact id
-            return None
-        return self._result_artifact.data
+        return self._result_artifact.data if self.result_artifact_id else None
 
     @declared_attr
     def flow_run(cls):
@@ -238,7 +235,7 @@ class ORMTaskRunState:
             "Artifact",
             lazy="selectin",
             foreign_keys=[cls.result_artifact_id],
-            primaryjoin="Artifact.id==%s.result_artifact_id" % cls.__name__,
+            primaryjoin=f"Artifact.id=={cls.__name__}.result_artifact_id",
         )
 
     @hybrid_property
@@ -246,10 +243,7 @@ class ORMTaskRunState:
         if self._data:
             # ensures backwards compatibility for results stored on state objects
             return self._data
-        if not self.result_artifact_id:
-            # do not try to load the relationship if there's no artifact id
-            return None
-        return self._result_artifact.data
+        return self._result_artifact.data if self.result_artifact_id else None
 
     @declared_attr
     def task_run(cls):
@@ -563,7 +557,7 @@ class ORMFlowRun(ORMRun):
             "FlowRunState",
             lazy="selectin",
             foreign_keys=[cls.state_id],
-            primaryjoin="FlowRunState.id==%s.state_id" % cls.__name__,
+            primaryjoin=f"FlowRunState.id=={cls.__name__}.state_id",
         )
 
     @hybrid_property
@@ -602,8 +596,7 @@ class ORMFlowRun(ORMRun):
             "TaskRun",
             back_populates="flow_run",
             lazy="raise",
-            # foreign_keys=lambda: [cls.flow_run_id],
-            primaryjoin="TaskRun.flow_run_id==%s.id" % cls.__name__,
+            primaryjoin=f"TaskRun.flow_run_id=={cls.__name__}.id",
         )
 
     @declared_attr
@@ -739,7 +732,7 @@ class ORMTaskRun(ORMRun):
             "TaskRunState",
             lazy="selectin",
             foreign_keys=[cls.state_id],
-            primaryjoin="TaskRunState.id==%s.state_id" % cls.__name__,
+            primaryjoin=f"TaskRunState.id=={cls.__name__}.state_id",
         )
 
     @hybrid_property
@@ -783,8 +776,7 @@ class ORMTaskRun(ORMRun):
             "FlowRun",
             back_populates="parent_task_run",
             lazy="raise",
-            # foreign_keys=["FlowRun.parent_task_run_id"],
-            primaryjoin="FlowRun.parent_task_run_id==%s.id" % cls.__name__,
+            primaryjoin=f"FlowRun.parent_task_run_id=={cls.__name__}.id",
             uselist=False,
         )
 

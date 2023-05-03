@@ -53,10 +53,9 @@ class CancelContext:
         return self._deadline
 
     def cancel(self):
-        if self.mark_cancelled():
-            if self._cancel is not None:
-                logger.debug("Cancelling %r with %r", self, self._cancel)
-                self._cancel()
+        if self.mark_cancelled() and self._cancel is not None:
+            logger.debug("Cancelling %r with %r", self, self._cancel)
+            self._cancel()
 
     def cancelled(self):
         with self._lock:
@@ -129,10 +128,7 @@ def get_deadline(timeout: Optional[float]):
 
     Uses a monotonic clock.
     """
-    if timeout is None:
-        return None
-
-    return time.monotonic() + timeout
+    return None if timeout is None else time.monotonic() + timeout
 
 
 class _AsyncCanceller(anyio._backends._asyncio.CancelScope):

@@ -772,14 +772,13 @@ class BlockDocument(ORMBaseModel):
                 secret_key = tuple(secret_field.split("."))
                 if flat_data.get(secret_key) is not None:
                     flat_data[secret_key] = obfuscate_string(flat_data[secret_key])
-                # If a wildcard (*) is in the current secret key path, we take the portion
-                # of the path before the wildcard and compare it to the same level of each
-                # key. A match means that the field is nested under the secret key and should
-                # be obfuscated.
                 elif "*" in secret_key:
                     wildcard_index = secret_key.index("*")
                     for data_key in flat_data.keys():
-                        if secret_key[0:wildcard_index] == data_key[0:wildcard_index]:
+                        if (
+                            secret_key[:wildcard_index]
+                            == data_key[:wildcard_index]
+                        ):
                             flat_data[data_key] = obfuscate(flat_data[data_key])
             data = flatdict_to_dict(flat_data)
 
@@ -963,13 +962,12 @@ class WorkQueueHealthPolicy(PrefectBaseModel):
         ):
             healthy = False
 
-        if self.maximum_seconds_since_last_polled is not None:
-            if (
-                last_polled is None
-                or pendulum.now("UTC").diff(last_polled).in_seconds()
-                > self.maximum_seconds_since_last_polled
-            ):
-                healthy = False
+        if self.maximum_seconds_since_last_polled is not None and (
+            last_polled is None
+            or pendulum.now("UTC").diff(last_polled).in_seconds()
+            > self.maximum_seconds_since_last_polled
+        ):
+            healthy = False
 
         return healthy
 
@@ -1101,7 +1099,7 @@ class WorkPool(ORMBaseModel):
 
     @validator("base_job_template")
     def validate_base_job_template(cls, v):
-        if v == dict():
+        if v == {}:
             return v
 
         job_config = v.get("job_configuration")
@@ -1185,18 +1183,15 @@ class Artifact(ORMBaseModel):
 
     @classmethod
     def from_result(cls, data: Any):
-        artifact_info = dict()
+        artifact_info = {}
         if isinstance(data, dict):
-            artifact_key = data.pop("artifact_key", None)
-            if artifact_key:
+            if artifact_key := data.pop("artifact_key", None):
                 artifact_info["key"] = artifact_key
 
-            artifact_type = data.pop("artifact_type", None)
-            if artifact_type:
+            if artifact_type := data.pop("artifact_type", None):
                 artifact_info["type"] = artifact_type
 
-            description = data.pop("artifact_description", None)
-            if description:
+            if description := data.pop("artifact_description", None):
                 artifact_info["description"] = description
 
         return cls(data=data, **artifact_info)
@@ -1208,7 +1203,7 @@ class Artifact(ORMBaseModel):
             return v
         for key in v.keys():
             if len(str(v[key])) > max_metadata_length:
-                v[key] = str(v[key])[:max_metadata_length] + "..."
+                v[key] = f"{str(v[key])[:max_metadata_length]}..."
         return v
 
 

@@ -102,19 +102,17 @@ def pydantic_subclass(
         )
     field_names.difference_update(excluded_fields)
 
-    # create a new class that inherits from `base` but only contains the specified
-    # pydantic __fields__
-    new_cls = type(
+    return type(
         name or base.__name__,
         (base,),
         {
             "__fields__": {
-                k: copy.copy(v) for k, v in base.__fields__.items() if k in field_names
+                k: copy.copy(v)
+                for k, v in base.__fields__.items()
+                if k in field_names
             }
         },
     )
-
-    return new_cls
 
 
 def orjson_dumps(v: Any, *, default: Any) -> str:
@@ -272,13 +270,11 @@ class PrefectBaseModel(BaseModel):
             for _, field in self.__fields__.items()
             if field.field_info.extra.get("experimental")
         ]
-        experimental_fields_to_exclude = [
+        if experimental_fields_to_exclude := [
             field.name
             for field in experimental_fields
             if not experiment_enabled(field.field_info.extra["experimental-group"])
-        ]
-
-        if experimental_fields_to_exclude:
+        ]:
             kwargs["exclude"] = (kwargs.get("exclude") or set()).union(
                 experimental_fields_to_exclude
             )
@@ -328,7 +324,7 @@ class PrefectBaseModel(BaseModel):
             A new copy of the model
         """
         if reset_fields:
-            update = update or dict()
+            update = update or {}
             for field in self._reset_fields():
                 update.setdefault(field, self.__fields__[field].get_default())
         return super().copy(update=update, **kwargs)
@@ -440,18 +436,17 @@ def copy_model_fields(model_class: Type[B]) -> Type[B]:
         # For safety, types defined on the model must match those of the origin
         # We make an exception here for `Optional` where the model can make the same
         # type definition nullable.
-        if (
-            field.type_ != origin_field.type_
-            and not field.type_ == Optional[origin_field.type_]
+        if field.type_ not in [
+            origin_field.type_,
+            Optional[origin_field.type_],
+        ] and not issubclass(
+            origin_field.type_,
+            field.type_,
         ):
-            if not issubclass(
-                origin_field.type_,
-                field.type_,
-            ):
-                raise TypeError(
-                    f"Field {name} ({field.type_}) does not match the type of the"
-                    f" origin field {origin_field.type_}"
-                )
+            raise TypeError(
+                f"Field {name} ({field.type_}) does not match the type of the"
+                f" origin field {origin_field.type_}"
+            )
 
         # Create a copy of the origin field
         new_field = copy.deepcopy(origin_field)

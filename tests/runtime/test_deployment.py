@@ -6,14 +6,13 @@ from prefect.runtime import deployment
 
 @pytest.fixture
 async def deployment_id(flow, orion_client):
-    response = await orion_client.create_deployment(
+    return await orion_client.create_deployment(
         name="My Deployment",
         version="gold",
         flow_id=flow.id,
         tags=["foo"],
         parameters={"foo": "bar"},
     )
-    return response
 
 
 class TestAttributeAccessPatterns:

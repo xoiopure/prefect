@@ -58,9 +58,11 @@ def emit_event(
     if id is not None:
         event_kwargs["id"] = id
 
-    if follows is not None:
-        if -TIGHT_TIMING < (occurred - follows.occurred) < TIGHT_TIMING:
-            event_kwargs["follows"] = follows.id
+    if (
+        follows is not None
+        and -TIGHT_TIMING < (occurred - follows.occurred) < TIGHT_TIMING
+    ):
+        event_kwargs["follows"] = follows.id
 
     event_obj = Event(**event_kwargs)
     EventsWorker.instance().send(event_obj)

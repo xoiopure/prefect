@@ -182,7 +182,7 @@ def test_container_name_includes_index_on_conflict(mock_docker_client, collision
     assert mock_docker_client.containers.create.call_count == collision_count + 1
     call_name = mock_docker_client.containers.create.call_args[1].get("name")
     expected_name = (
-        "test-name" if not collision_count else f"test-name-{collision_count}"
+        f"test-name-{collision_count}" if collision_count else "test-name"
     )
     assert call_name == expected_name
 
@@ -807,7 +807,7 @@ def test_container_name_collision(docker: "DockerClient"):
     result = container.run()
     _, container_id = DockerContainer()._parse_infrastructure_pid(result.identifier)
     created_container: "Container" = docker.containers.get(container_id)
-    assert created_container.name == base_name + "-1"
+    assert created_container.name == f"{base_name}-1"
 
 
 @pytest.mark.service("docker")

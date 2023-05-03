@@ -90,9 +90,7 @@ class LocalFileSystem(WritableFileSystem, WritableDeploymentStorage):
 
     @validator("basepath", pre=True)
     def cast_pathlib(cls, value):
-        if isinstance(value, Path):
-            return str(value)
-        return value
+        return str(value) if isinstance(value, Path) else value
 
     def _resolve_path(self, path: str) -> Path:
         # Only resolve the base path at runtime, default to the current directory
@@ -129,16 +127,12 @@ class LocalFileSystem(WritableFileSystem, WritableDeploymentStorage):
 
         Defaults to copying the entire contents of the block's basepath to the current working directory.
         """
-        if not from_path:
-            from_path = Path(self.basepath).expanduser().resolve()
-        else:
-            from_path = Path(from_path).resolve()
-
-        if not local_path:
-            local_path = Path(".").resolve()
-        else:
-            local_path = Path(local_path).resolve()
-
+        from_path = (
+            Path(from_path).resolve()
+            if from_path
+            else Path(self.basepath).expanduser().resolve()
+        )
+        local_path = Path(local_path).resolve() if local_path else Path(".").resolve()
         if from_path == local_path:
             # If the paths are the same there is no need to copy
             # and we avoid shutil.copytree raising an error
@@ -183,9 +177,7 @@ class LocalFileSystem(WritableFileSystem, WritableDeploymentStorage):
         else:
             ignore_func = None
 
-        if local_path == destination_path:
-            pass
-        else:
+        if local_path != destination_path:
             copytree(
                 src=local_path,
                 dst=destination_path,
@@ -289,18 +281,20 @@ class RemoteFileSystem(WritableFileSystem, WritableDeploymentStorage):
         scheme, netloc, urlpath, _, _ = urllib.parse.urlsplit(path)
 
         # Confirm that absolute paths are valid
-        if scheme:
-            if scheme != base_scheme:
-                raise ValueError(
-                    f"Path {path!r} with scheme {scheme!r} must use the same scheme as"
-                    f" the base path {base_scheme!r}."
-                )
+        if scheme and scheme != base_scheme:
+            raise ValueError(
+                f"Path {path!r} with scheme {scheme!r} must use the same scheme as"
+                f" the base path {base_scheme!r}."
+            )
 
-        if netloc:
-            if (netloc != base_netloc) or not urlpath.startswith(base_urlpath):
-                raise ValueError(
-                    f"Path {path!r} is outside of the base path {self.basepath!r}."
-                )
+        if (
+            netloc
+            and (netloc != base_netloc)
+            or not urlpath.startswith(base_urlpath)
+        ):
+            raise ValueError(
+                f"Path {path!r} is outside of the base path {self.basepath!r}."
+            )
 
         return f"{self.basepath.rstrip('/')}/{urlpath.lstrip('/')}"
 
@@ -362,11 +356,9 @@ class RemoteFileSystem(WritableFileSystem, WritableDeploymentStorage):
             if to_path.endswith("/"):
                 fpath = to_path + relative_path.as_posix()
             else:
-                fpath = to_path + "/" + relative_path.as_posix()
+                fpath = f"{to_path}/{relative_path.as_posix()}"
 
-            if f.is_dir():
-                pass
-            else:
+            if not f.is_dir():
                 f = f.as_posix()
                 if overwrite:
                     self.filesystem.put_file(f, fpath, overwrite=True)
@@ -557,10 +549,9 @@ class GCS(WritableFileSystem, WritableDeploymentStorage):
                     "Unable to load provided service_account_info. Please make sure"
                     " that the provided value is a valid JSON string."
                 )
-        remote_file_system = RemoteFileSystem(
+        return RemoteFileSystem(
             basepath=f"gcs://{self.bucket_path}", settings=settings
         )
-        return remote_file_system
 
     @sync_compatible
     async def get_directory(
@@ -879,15 +870,17 @@ class GitHub(ReadableDeploymentStorage):
         Note: validates `access_token` specifically so that it only fires when
         private repositories are used.
         """
-        if v is not None:
-            if urllib.parse.urlparse(values["repository"]).scheme != "https":
-                raise InvalidRepositoryURLError(
-                    "Crendentials can only be used with GitHub repositories "
-                    "using the 'HTTPS' format. You must either remove the "
-                    "credential if you wish to use the 'SSH' format and are not "
-                    "using a private repository, or you must change the repository "
-                    "URL to the 'HTTPS' format. "
-                )
+        if (
+            v is not None
+            and urllib.parse.urlparse(values["repository"]).scheme != "https"
+        ):
+            raise InvalidRepositoryURLError(
+                "Crendentials can only be used with GitHub repositories "
+                "using the 'HTTPS' format. You must either remove the "
+                "credential if you wish to use the 'SSH' format and are not "
+                "using a private repository, or you must change the repository "
+                "URL to the 'HTTPS' format. "
+            )
 
         return v
 
@@ -898,15 +891,13 @@ class GitHub(ReadableDeploymentStorage):
         All other repos should be the same as `self.repository`.
         """
         url_components = urllib.parse.urlparse(self.repository)
-        if url_components.scheme == "https" and self.access_token is not None:
-            updated_components = url_components._replace(
-                netloc=f"{self.access_token.get_secret_value()}@{url_components.netloc}"
-            )
-            full_url = urllib.parse.urlunparse(updated_components)
-        else:
-            full_url = self.repository
+        if url_components.scheme != "https" or self.access_token is None:
+            return self.repository
 
-        return full_url
+        updated_components = url_components._replace(
+            netloc=f"{self.access_token.get_secret_value()}@{url_components.netloc}"
+        )
+        return urllib.parse.urlunparse(updated_components)
 
     @staticmethod
     def _get_paths(
@@ -965,10 +956,7 @@ class GitHub(ReadableDeploymentStorage):
                 dst_dir=local_path, src_dir=tmp_dir, sub_directory=from_path
             )
 
-            ignore_func = None
-            if not self.include_git_objects:
-                ignore_func = ignore_patterns(".git")
-
+            ignore_func = None if self.include_git_objects else ignore_patterns(".git")
             copytree(
                 src=content_source,
                 dst=content_destination,
