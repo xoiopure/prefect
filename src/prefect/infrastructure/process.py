@@ -103,9 +103,9 @@ class Process(Infrastructure):
         # Open a subprocess to execute the flow run
         self.logger.info(f"Opening process{display_name}...")
         working_dir_ctx = (
-            tempfile.TemporaryDirectory(suffix="prefect")
-            if not self.working_dir
-            else contextlib.nullcontext(self.working_dir)
+            contextlib.nullcontext(self.working_dir)
+            if self.working_dir
+            else tempfile.TemporaryDirectory(suffix="prefect")
         )
         with working_dir_ctx as working_dir:
             self.logger.debug(

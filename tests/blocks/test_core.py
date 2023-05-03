@@ -769,9 +769,7 @@ class TestAPICompatibility:
         try:
             Secret.register_type_and_schema()
         except PrefectHTTPStatusError as exc:
-            if exc.response.status_code == 403:
-                pass
-            else:
+            if exc.response.status_code != 403:
                 raise exc
 
         block_schema = Secret._to_block_schema()

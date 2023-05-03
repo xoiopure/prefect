@@ -103,7 +103,7 @@ class PrefectCloudEventsClient(EventsClient):
         """
         socket_url = api_url.replace("https://", "wss://").replace("http://", "ws://")
         self._connect = connect(
-            socket_url + "/events/in",
+            f"{socket_url}/events/in",
             extra_headers={"Authorization": f"bearer {api_key}"},
         )
         self._websocket = None

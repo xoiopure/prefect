@@ -168,24 +168,19 @@ def enter_flow_run_engine_from_flow_call(
     # On completion of root flows, wait for the global thread to ensure that
     # any work there is complete
     done_callbacks = (
-        [create_call(wait_for_global_loop_exit)] if not is_subflow_run else None
+        None if is_subflow_run else [create_call(wait_for_global_loop_exit)]
     )
 
-    if flow.isasync and (
-        not is_subflow_run or (is_subflow_run and parent_flow_run_context.flow.isasync)
-    ):
-        # return a coro for the user to await if the flow is async
-        # unless it is an async subflow called in a sync flow
-        retval = from_async.wait_for_call_in_loop_thread(
+    return (
+        from_async.wait_for_call_in_loop_thread(
             begin_run, done_callbacks=done_callbacks
         )
-
-    else:
-        retval = from_sync.wait_for_call_in_loop_thread(
+        if flow.isasync
+        and (not is_subflow_run or parent_flow_run_context.flow.isasync)
+        else from_sync.wait_for_call_in_loop_thread(
             begin_run, done_callbacks=done_callbacks
         )
-
-    return retval
+    )
 
 
 def enter_flow_run_engine_from_subprocess(flow_run_id: UUID) -> State:
@@ -459,8 +454,6 @@ async def create_and_begin_subflow_run(
     parent_flow_run_context = FlowRunContext.get()
     parent_logger = get_run_logger(parent_flow_run_context)
     log_prints = should_log_prints(flow)
-    terminal_state = None
-
     parent_logger.debug(f"Resolving inputs to {flow.name!r}")
     task_inputs = {k: await collect_task_run_inputs(v) for k, v in parameters.items()}
 
@@ -482,8 +475,9 @@ async def create_and_begin_subflow_run(
     # Resolve any task futures in the input
     parameters = await resolve_inputs(parameters)
 
-    if parent_task_run.state.is_final() and not (
-        rerunning and not parent_task_run.state.is_completed()
+    terminal_state = None
+    if parent_task_run.state.is_final() and (
+        not rerunning or parent_task_run.state.is_completed()
     ):
         # Retrieve the most recent flow run from the database
         flow_runs = await client.read_flow_runs(
@@ -503,7 +497,7 @@ async def create_and_begin_subflow_run(
             flow,
             parameters=flow.serialize_parameters(parameters),
             parent_task_run_id=parent_task_run.id,
-            state=parent_task_run.state if not rerunning else Pending(),
+            state=Pending() if rerunning else parent_task_run.state,
             tags=TagsContext.get().current_tags,
         )
 
@@ -643,11 +637,11 @@ async def orchestrate_flow_run(
         flow_run = await client.read_flow_run(flow_run.id)
         try:
             with partial_flow_run_context.finalize(
-                flow=flow,
-                flow_run=flow_run,
-                client=client,
-                parameters=parameters,
-            ) as flow_run_context:
+                            flow=flow,
+                            flow_run=flow_run,
+                            client=client,
+                            parameters=parameters,
+                        ) as flow_run_context:
                 # update flow run name
                 if not run_name_set and flow.flow_run_name:
                     flow_run_name = _resolve_custom_flow_run_name(
@@ -684,10 +678,7 @@ async def orchestrate_flow_run(
 
                 if parent_call and (
                     not parent_flow_run_context
-                    or (
-                        parent_flow_run_context
-                        and parent_flow_run_context.flow.isasync == flow.isasync
-                    )
+                    or parent_flow_run_context.flow.isasync == flow.isasync
                 ):
                     from_async.call_soon_in_waiter_thread(
                         flow_call, timeout=flow.timeout_seconds
@@ -704,8 +695,7 @@ async def orchestrate_flow_run(
                 )
         except PausedRun:
             paused_flow_run = await client.read_flow_run(flow_run.id)
-            paused_flow_run_state = paused_flow_run.state
-            return paused_flow_run_state
+            return paused_flow_run.state
         except Exception as exc:
             name = message = None
             if (
@@ -1062,9 +1052,9 @@ async def begin_task_map(
 
     task_runs = []
     for i in range(map_length):
-        call_parameters = {key: value[i] for key, value in iterable_parameters.items()}
-        call_parameters.update({key: value for key, value in static_parameters.items()})
-
+        call_parameters = {
+            key: value[i] for key, value in iterable_parameters.items()
+        } | static_parameters
         # Add default values for parameters; these are skipped earlier since they should
         # not be mapped over
         for key, value in get_parameter_defaults(task.fn).items():
@@ -1670,7 +1660,7 @@ async def wait_for_task_runs_and_report_crashes(
     for future, state in zip(task_run_futures, states):
         logger = task_run_logger(future.task_run)
 
-        if not state.type == StateType.CRASHED:
+        if state.type != StateType.CRASHED:
             continue
 
         # We use this utility instead of `state.result` for type checking
@@ -2012,8 +2002,7 @@ def get_state_for_result(obj: Any) -> Optional[State]:
 
     `link_state_to_result` must have been called first.
     """
-    flow_run_context = FlowRunContext.get()
-    if flow_run_context:
+    if flow_run_context := FlowRunContext.get():
         return flow_run_context.task_run_results.get(id(obj))
 
 

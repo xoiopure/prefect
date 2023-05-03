@@ -96,13 +96,13 @@ def agent_process_entrypoint(**kwargs):
     # add a console, because calling the agent start function directly
     # instead of via CLI call means `app` has no `console` attached.
     app.console = (
-        rich.console.Console(
+        app.console
+        if getattr(app, "console", None)
+        else rich.console.Console(
             highlight=False,
             color_system="auto" if PREFECT_CLI_COLORS else None,
             soft_wrap=not PREFECT_CLI_WRAP_LINES.value(),
         )
-        if not getattr(app, "console", None)
-        else app.console
     )
 
     try:
@@ -210,7 +210,7 @@ async def api(
         "--factory",
         "prefect.server.api.server:create_app",
         "--host",
-        str(host),
+        host,
         "--port",
         str(port),
         "--log-level",
@@ -315,10 +315,11 @@ async def start(
             tg.start_soon(ui)
         if not exclude_agent:
             # Hook the agent to the hosted API if running
-            if not exclude_api:
-                host = f"http://{PREFECT_SERVER_API_HOST.value()}:{PREFECT_SERVER_API_PORT.value()}/api"  # noqa
-            else:
-                host = PREFECT_API_URL.value()
+            host = (
+                PREFECT_API_URL.value()
+                if exclude_api
+                else f"http://{PREFECT_SERVER_API_HOST.value()}:{PREFECT_SERVER_API_PORT.value()}/api"
+            )
             tg.start_soon(agent, host, work_queues)
 
 

@@ -106,8 +106,7 @@ async def run_deployment(
     else:
         deployment = await client.read_deployment_by_name(name)
 
-    flow_run_ctx = FlowRunContext.get()
-    if flow_run_ctx:
+    if flow_run_ctx := FlowRunContext.get():
         # This was called from a flow. Link the flow run as a subflow.
         from prefect.engine import (
             Pending,
@@ -202,7 +201,7 @@ async def load_flow_from_flow_run(
         # TODO: allow for passing values between steps / stacking them
         output = {}
         for step in deployment.pull_steps:
-            output.update(await run_step(step))
+            output |= await run_step(step)
         if output.get("directory"):
             logger.debug(f"Changing working directory to {output['directory']!r}")
             os.chdir(output["directory"])
@@ -217,8 +216,9 @@ async def load_flow_from_flow_run(
             import_path = (
                 Path(deployment.manifest_path).parent / import_path
             ).absolute()
-    flow = await run_sync_in_worker_thread(load_flow_from_entrypoint, str(import_path))
-    return flow
+    return await run_sync_in_worker_thread(
+        load_flow_from_entrypoint, str(import_path)
+    )
 
 
 def load_deployments_from_yaml(
@@ -354,9 +354,9 @@ class Deployment(BaseModel):
         location = ""
         if self.storage:
             location = (
-                self.storage.basepath + "/"
-                if not self.storage.basepath.endswith("/")
-                else ""
+                ""
+                if self.storage.basepath.endswith("/")
+                else f"{self.storage.basepath}/"
             )
         if self.path:
             location += self.path
@@ -513,9 +513,7 @@ class Deployment(BaseModel):
         """
         This method ensures setting a value of `None` is handled gracefully.
         """
-        if value is None:
-            return ParameterSchema()
-        return value
+        return ParameterSchema() if value is None else value
 
     @classmethod
     @sync_compatible
@@ -524,17 +522,15 @@ class Deployment(BaseModel):
 
         # load blocks from server to ensure secret values are properly hydrated
         if data.get("storage"):
-            block_doc_name = data["storage"].get("_block_document_name")
-            # if no doc name, this block is not stored on the server
-            if block_doc_name:
+            if block_doc_name := data["storage"].get("_block_document_name"):
                 block_slug = data["storage"]["_block_type_slug"]
                 block = await Block.load(f"{block_slug}/{block_doc_name}")
                 data["storage"] = block
 
         if data.get("infrastructure"):
-            block_doc_name = data["infrastructure"].get("_block_document_name")
-            # if no doc name, this block is not stored on the server
-            if block_doc_name:
+            if block_doc_name := data["infrastructure"].get(
+                "_block_document_name"
+            ):
                 block_slug = data["infrastructure"]["_block_type_slug"]
                 block = await Block.load(f"{block_slug}/{block_doc_name}")
                 data["infrastructure"] = block
@@ -571,20 +567,24 @@ class Deployment(BaseModel):
                     new_value = getattr(deployment, field)
                     setattr(self, field, new_value)
 
-                if "infrastructure" not in self.__fields_set__:
-                    if deployment.infrastructure_document_id:
-                        self.infrastructure = Block._from_block_document(
-                            await client.read_block_document(
-                                deployment.infrastructure_document_id
-                            )
+                if (
+                    "infrastructure" not in self.__fields_set__
+                    and deployment.infrastructure_document_id
+                ):
+                    self.infrastructure = Block._from_block_document(
+                        await client.read_block_document(
+                            deployment.infrastructure_document_id
                         )
-                if "storage" not in self.__fields_set__:
-                    if deployment.storage_document_id:
-                        self.storage = Block._from_block_document(
-                            await client.read_block_document(
-                                deployment.storage_document_id
-                            )
+                    )
+                if (
+                    "storage" not in self.__fields_set__
+                    and deployment.storage_document_id
+                ):
+                    self.storage = Block._from_block_document(
+                        await client.read_block_document(
+                            deployment.storage_document_id
                         )
+                    )
             except ObjectNotFound:
                 return False
         return True
@@ -598,8 +598,7 @@ class Deployment(BaseModel):
             ignore_none: if True, all `None` values are ignored when performing the
                 update
         """
-        unknown_keys = set(kwargs.keys()) - set(self.dict().keys())
-        if unknown_keys:
+        if unknown_keys := set(kwargs.keys()) - set(self.dict().keys()):
             raise ValueError(
                 f"Received unexpected attributes: {', '.join(unknown_keys)}"
             )
@@ -700,7 +699,7 @@ class Deployment(BaseModel):
 
             # we assume storage was already saved
             storage_document_id = getattr(self.storage, "_block_document_id", None)
-            deployment_id = await client.create_deployment(
+            return await client.create_deployment(
                 flow_id=flow_id,
                 name=self.name,
                 work_queue_name=self.work_queue_name,
@@ -719,8 +718,6 @@ class Deployment(BaseModel):
                 infrastructure_document_id=infrastructure_document_id,
                 parameter_openapi_schema=self.parameter_openapi_schema.dict(),
             )
-
-            return deployment_id
 
     @classmethod
     @sync_compatible
@@ -772,8 +769,8 @@ class Deployment(BaseModel):
                     raise ValueError("Could not determine flow's file location.")
                 module = importlib.import_module(mod_name)
                 flow_file = getattr(module, "__file__", None)
-                if not flow_file:
-                    raise ValueError("Could not determine flow's file location.")
+            if not flow_file:
+                raise ValueError("Could not determine flow's file location.")
 
             # set entrypoint
             entry_path = Path(flow_file).absolute().relative_to(Path(".").absolute())
@@ -793,22 +790,22 @@ class Deployment(BaseModel):
         if not deployment.description:
             deployment.description = flow.description
 
-        # proxy for whether infra is docker-based
-        is_docker_based = hasattr(deployment.infrastructure, "image")
+        if not deployment.storage:
+            # proxy for whether infra is docker-based
+            is_docker_based = hasattr(deployment.infrastructure, "image")
 
-        if not deployment.storage and not is_docker_based and not deployment.path:
-            deployment.path = str(Path(".").absolute())
-        elif not deployment.storage and is_docker_based:
-            # only update if a path is not already set
-            if not deployment.path:
-                deployment.path = "/opt/prefect/flows"
+            if not is_docker_based and not deployment.path:
+                deployment.path = str(Path(".").absolute())
+            elif is_docker_based:
+                # only update if a path is not already set
+                if not deployment.path:
+                    deployment.path = "/opt/prefect/flows"
 
-        if not skip_upload:
-            if (
-                deployment.storage
-                and "put-directory" in deployment.storage.get_block_capabilities()
-            ):
-                await deployment.upload_to_storage(ignore_file=ignore_file)
+        if not skip_upload and (
+            deployment.storage
+            and "put-directory" in deployment.storage.get_block_capabilities()
+        ):
+            await deployment.upload_to_storage(ignore_file=ignore_file)
 
         if output:
             await deployment.to_yaml(output)

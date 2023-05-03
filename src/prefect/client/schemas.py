@@ -160,7 +160,7 @@ class Workspace(PrefectBaseModel):
         """
         The full handle of the workspace as `account_handle` / `workspace_handle`
         """
-        return self.account_handle + "/" + self.workspace_handle
+        return f"{self.account_handle}/{self.workspace_handle}"
 
     def api_url(self) -> str:
         """

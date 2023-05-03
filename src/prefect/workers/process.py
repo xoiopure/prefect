@@ -84,9 +84,7 @@ class ProcessJobConfiguration(BaseJobConfiguration):
     @validator("working_dir")
     def validate_command(cls, v):
         """Make sure that the working directory is formatted for the current platform."""
-        if v:
-            return relative_path_to_current_platform(v)
-        return v
+        return relative_path_to_current_platform(v) if v else v
 
     def prepare_for_flow_run(
         self,
@@ -156,9 +154,9 @@ class ProcessWorker(BaseWorker):
         self._logger.info("Opening process...")
 
         working_dir_ctx = (
-            tempfile.TemporaryDirectory(suffix="prefect")
-            if not configuration.working_dir
-            else contextlib.nullcontext(configuration.working_dir)
+            contextlib.nullcontext(configuration.working_dir)
+            if configuration.working_dir
+            else tempfile.TemporaryDirectory(suffix="prefect")
         )
         with working_dir_ctx as working_dir:
             self._logger.debug(f"Process running command: {command} in {working_dir}")

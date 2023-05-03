@@ -52,12 +52,11 @@ async def _insert_into_artifact_collection(
 
     model = result.scalar()
 
-    if model is not None:
-        if model.latest_id != artifact.id:
-            raise ValueError(
-                f"Artifact {artifact.id} was not inserted into the artifact collection"
-                " table."
-            )
+    if model is not None and model.latest_id != artifact.id:
+        raise ValueError(
+            f"Artifact {artifact.id} was not inserted into the artifact collection"
+            " table."
+        )
     if model is None:
         raise ValueError(
             f"Artifact {artifact.id} was not inserted into the artifact collection"
@@ -93,9 +92,7 @@ async def _insert_into_artifact(
     )
 
     result = await session.execute(query)
-    model = result.scalar()
-
-    return model
+    return result.scalar()
 
 
 @inject_db
@@ -111,14 +108,12 @@ async def create_artifact(
             session=session, now=now, db=db, artifact=artifact
         )
 
-    result = await _insert_into_artifact(
+    return await _insert_into_artifact(
         session=session,
         now=now,
         db=db,
         artifact=artifact,
     )
-
-    return result
 
 
 @inject_db

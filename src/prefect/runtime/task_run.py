@@ -48,34 +48,22 @@ def get_id() -> str:
 
 def get_tags() -> List[str]:
     task_run_ctx = TaskRunContext.get()
-    if task_run_ctx is None:
-        return []
-    else:
-        return task_run_ctx.task_run.tags
+    return [] if task_run_ctx is None else task_run_ctx.task_run.tags
 
 
 def get_name() -> Optional[str]:
     task_run_ctx = TaskRunContext.get()
-    if task_run_ctx is None:
-        return None
-    else:
-        return task_run_ctx.task_run.name
+    return None if task_run_ctx is None else task_run_ctx.task_run.name
 
 
 def get_task_name() -> Optional[str]:
     task_run_ctx = TaskRunContext.get()
-    if task_run_ctx is None:
-        return None
-    else:
-        return task_run_ctx.task.name
+    return None if task_run_ctx is None else task_run_ctx.task.name
 
 
 def get_parameters() -> Dict[str, Any]:
     task_run_ctx = TaskRunContext.get()
-    if task_run_ctx is not None:
-        return task_run_ctx.parameters
-    else:
-        return {}
+    return task_run_ctx.parameters if task_run_ctx is not None else {}
 
 
 FIELDS = {

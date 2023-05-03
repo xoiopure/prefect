@@ -412,14 +412,13 @@ async def get_available_work_pool_types() -> Set[str]:
     try:
         worker_metadata = await _get_worker_metadata()
         for collection in worker_metadata.values():
-            for worker in collection.values():
-                work_pool_types.append(worker.get("type"))
+            work_pool_types.extend(worker.get("type") for worker in collection.values())
     except Exception:
         # Return only work pool types from the local type registry if
         # the request to the collections registry fails.
         pass
 
-    return set([type for type in work_pool_types if type is not None])
+    return {type for type in work_pool_types if type is not None}
 
 
 async def _get_worker_metadata() -> Dict[str, Any]:

@@ -70,19 +70,15 @@ async def _get_deployment(deployment_id):
 def get_id() -> Optional[str]:
     flow_run = FlowRunContext.get()
     deployment_id = getattr(flow_run, "deployment_id", None)
-    if deployment_id is None:
-        run_id = get_flow_run_id()
-        if run_id is None:
-            return None
-        flow_run = from_sync.call_soon_in_loop_thread(
-            create_call(_get_flow_run, run_id)
-        ).result()
-        if flow_run.deployment_id:
-            return str(flow_run.deployment_id)
-        else:
-            return None
-    else:
+    if deployment_id is not None:
         return str(deployment_id)
+    run_id = get_flow_run_id()
+    if run_id is None:
+        return None
+    flow_run = from_sync.call_soon_in_loop_thread(
+        create_call(_get_flow_run, run_id)
+    ).result()
+    return str(flow_run.deployment_id) if flow_run.deployment_id else None
 
 
 def get_parameters() -> dict:

@@ -304,12 +304,11 @@ class PrefectClient:
             "/flows/", json=flow_data.dict(json_compatible=True)
         )
 
-        flow_id = response.json().get("id")
-        if not flow_id:
+        if flow_id := response.json().get("id"):
+            # Return the id of the created flow
+            return UUID(flow_id)
+        else:
             raise httpx.RequestError(f"Malformed response: {response}")
-
-        # Return the id of the created flow
-        return UUID(flow_id)
 
     async def read_flow(self, flow_id: UUID) -> schemas.core.Flow:
         """
@@ -627,12 +626,10 @@ class PrefectClient:
             json=concurrency_limit_create.dict(json_compatible=True),
         )
 
-        concurrency_limit_id = response.json().get("id")
-
-        if not concurrency_limit_id:
+        if concurrency_limit_id := response.json().get("id"):
+            return UUID(concurrency_limit_id)
+        else:
             raise httpx.RequestError(f"Malformed response: {response}")
-
-        return UUID(concurrency_limit_id)
 
     async def read_concurrency_limit_by_tag(
         self,
@@ -661,13 +658,10 @@ class PrefectClient:
             else:
                 raise
 
-        concurrency_limit_id = response.json().get("id")
-
-        if not concurrency_limit_id:
+        if concurrency_limit_id := response.json().get("id"):
+            return schemas.core.ConcurrencyLimit.parse_obj(response.json())
+        else:
             raise httpx.RequestError(f"Malformed response: {response}")
-
-        concurrency_limit = schemas.core.ConcurrencyLimit.parse_obj(response.json())
-        return concurrency_limit
 
     async def read_concurrency_limits(
         self,
@@ -1412,11 +1406,10 @@ class PrefectClient:
             "/deployments/",
             json=json,
         )
-        deployment_id = response.json().get("id")
-        if not deployment_id:
+        if deployment_id := response.json().get("id"):
+            return UUID(deployment_id)
+        else:
             raise httpx.RequestError(f"Malformed response: {response}")
-
-        return UUID(deployment_id)
 
     async def update_deployment(
         self,
@@ -1463,11 +1456,10 @@ class PrefectClient:
         response = await self._client.post(
             "/deployments/", json=schema.dict(json_compatible=True)
         )
-        deployment_id = response.json().get("id")
-        if not deployment_id:
+        if deployment_id := response.json().get("id"):
+            return UUID(deployment_id)
+        else:
             raise httpx.RequestError(f"Malformed response: {response}")
-
-        return UUID(deployment_id)
 
     async def read_deployment(
         self,
@@ -1974,11 +1966,10 @@ class PrefectClient:
             json=policy.dict(json_compatible=True),
         )
 
-        policy_id = response.json().get("id")
-        if not policy_id:
+        if policy_id := response.json().get("id"):
+            return UUID(policy_id)
+        else:
             raise httpx.RequestError(f"Malformed response: {response}")
-
-        return UUID(policy_id)
 
     async def read_flow_run_notification_policies(
         self,
